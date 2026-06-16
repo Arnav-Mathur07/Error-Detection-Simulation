@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>NetSim — Error Detection Simulator</title>
+    <meta name="description" content="Interactive CRC and Hamming Code simulator">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .hero {
+            text-align: center;
+            padding: 2rem 0 2.5rem;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: var(--primary-dim);
+            color: var(--primary);
+            border: 1px solid rgba(59, 130, 246, .3);
+            border-radius: 2rem;
+            padding: .3rem 1rem;
+            font-size: .8rem;
+            font-weight: 700;
+            margin-bottom: 1.2rem;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 900;
+            letter-spacing: -2px;
+            line-height: 1.05;
+        }
+
+        .hero h1 span {
+            color: var(--primary);
+        }
+
+        .hero p {
+            margin-top: .8rem;
+            font-size: 1.05rem;
+            color: var(--muted);
+        }
+
+        .cards-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 820px;
+            margin-top: 2.5rem;
+        }
+
+        @media(max-width:600px) {
+            .cards-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .mode-card {
+            border-radius: var(--radius);
+            padding: 2rem;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid var(--glass-b);
+            background: var(--glass);
+            backdrop-filter: blur(14px);
+            transition: all .3s cubic-bezier(.4, 0, .2, 1);
+            user-select: none;
+        }
+
+        .mode-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .mode-card.crc-card:hover,
+        .mode-card.crc-card.selected {
+            border-color: rgba(59, 130, 246, .6);
+            box-shadow: 0 0 40px rgba(59, 130, 246, .2), 0 20px 40px rgba(0, 0, 0, .3);
+        }
+
+        .mode-card.ham-card:hover,
+        .mode-card.ham-card.selected {
+            border-color: rgba(139, 92, 246, .6);
+            box-shadow: 0 0 40px rgba(139, 92, 246, .2), 0 20px 40px rgba(0, 0, 0, .3);
+        }
+
+        .mode-card .glow-orb {
+            position: absolute;
+            top: -40px;
+            right: -40px;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            filter: blur(40px);
+            opacity: .35;
+        }
+
+        .crc-card .glow-orb {
+            background: var(--primary);
+        }
+
+        .ham-card .glow-orb {
+            background: var(--violet);
+        }
+
+        .mode-icon {
+            font-size: 2.5rem;
+            margin-bottom: .75rem;
+        }
+
+        .mode-name {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-bottom: .4rem;
+        }
+
+        .mode-card.crc-card .mode-name {
+            color: var(--primary);
+        }
+
+        .mode-card.ham-card .mode-name {
+            color: var(--violet);
+        }
+
+        .mode-desc {
+            font-size: .875rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .info-panel {
+            width: 100%;
+            max-width: 820px;
+            margin-top: 1.5rem;
+            display: none;
+            animation: pageIn .4s ease both;
+        }
+
+        .info-panel.visible {
+            display: block;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        @media(max-width:600px) {
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .info-block {
+            background: rgba(0, 0, 0, .25);
+            border-radius: 10px;
+            padding: 1rem;
+            border: 1px solid var(--glass-b);
+        }
+
+        .info-block h4 {
+            font-size: .8rem;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            margin-bottom: .5rem;
+        }
+
+        .info-block p {
+            font-size: .875rem;
+            color: #cbd5e1;
+            line-height: 1.6;
+        }
+
+        .formula-box {
+            background: rgba(0, 0, 0, .3);
+            border-radius: 8px;
+            padding: .75rem 1rem;
+            font-family: var(--mono);
+            font-size: .95rem;
+            margin-top: .5rem;
+            border: 1px solid var(--glass-b);
+        }
+
+        .begin-wrap {
+            margin-top: 2rem;
+            text-align: center;
+            animation: pageIn .4s ease .1s both;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="nav-strip">
+        <div class="nav-logo">Net<span>Sim</span></div>
+        <div class="nav-steps"></div>
+    </nav>
+
+    <div class="page-root page-wrap">
+        <div class="hero">
+            <div class="hero-badge">🎓 Computer Networks · Visual Simulator</div>
+            <h1>Select <span>Operation</span><br>to Perform</h1>
+            <p>Choose an error-detection algorithm to visualize its complete lifecycle.</p>
+        </div>
+
+        <div class="cards-row">
+            <div class="mode-card crc-card" id="card-crc" onclick="selectMode('crc')">
+                <div class="glow-orb"></div>
+                <div class="mode-icon">🔁</div>
+                <div class="mode-name">CRC</div>
+                <div class="mode-desc">Cyclic Redundancy Check — append a checksum to detect burst errors using
+                    polynomial division.</div>
+            </div>
+            <div class="mode-card ham-card" id="card-ham" onclick="selectMode('hamming')">
+                <div class="glow-orb"></div>
+                <div class="mode-icon">🛡️</div>
+                <div class="mode-name">Hamming Code</div>
+                <div class="mode-desc">Insert parity bits at power-of-2 positions to detect and correct single-bit
+                    errors.</div>
+            </div>
+        </div>
+
+        <!-- Detail panel shown after selection -->
+        <div class="info-panel card" id="info-panel">
+            <div id="info-inner"></div>
+        </div>
+
+        <div class="begin-wrap" id="begin-wrap" style="display:none">
+            <button class="btn btn-primary" onclick="navigate('transmit.html')"
+                style="padding:1rem 3rem;font-size:1.05rem;">
+                Begin Simulation &rarr;
+            </button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        buildNav('index.html');
+        const CRC_HTML = `
+<h3 style="font-size:1.1rem;font-weight:800;color:var(--primary);margin-bottom:1rem">� Cyclic Redundancy Check (CRC)</h3>
+<p style="color:var(--muted);font-size:.9rem;line-height:1.7;margin-bottom:1rem">CRC is a type of hash function used to detect accidental changes to raw data. A sender calculates a checksum (remainder) by doing polynomial long division and appends it to the data. The receiver repeats the division — if the remainder is zero, data is intact.</p>
+<div class="info-grid">
+  <div class="info-block"><h4>How Encoding Works</h4><p>Append <em>r</em> zeros to data (where r = degree of polynomial), then XOR-divide by the polynomial. The remainder is appended as the CRC checksum.</p><div class="formula-box">CRC = Data × 2<sup>r</sup> mod G(x)</div></div>
+  <div class="info-block"><h4>How Detection Works</h4><p>Receiver divides received frame by the same polynomial. If remainder ≠ 0, there was an error. If remainder = 0, data is considered valid.</p><div class="formula-box">Received ÷ G(x) → Remainder = 0?</div></div>
+  <div class="info-block"><h4>Key Properties</h4><p>Detects all single-bit errors, all burst errors up to the degree of the polynomial, and most other error patterns.</p></div>
+  <div class="info-block"><h4>Common Polynomials</h4><p>CRC-8: 100000111 &nbsp;|&nbsp; CRC-16: 11000000000000101 &nbsp;|&nbsp; CRC-32 in Ethernet</p><div class="formula-box" style="font-size:.8rem">G(x) = x³+x+1 → 1101</div></div>
+</div>`;
+
+        const HAM_HTML = `
+<h3 style="font-size:1.1rem;font-weight:800;color:var(--violet);margin-bottom:1rem">🛡️ Hamming Code</h3>
+<p style="color:var(--muted);font-size:.9rem;line-height:1.7;margin-bottom:1rem">Hamming Code inserts redundant parity bits at power-of-2 positions within the data. Each parity bit covers a specific set of data bit positions. At the receiver, the syndrome bits reveal the exact position of any single-bit error so it can be corrected.</p>
+<div class="info-grid">
+  <div class="info-block"><h4>Parity Bit Positions</h4><p>Positions 1, 2, 4, 8, 16… (powers of 2) are reserved for parity bits. Data fills the remaining positions.</p><div class="formula-box">If m data bits → r parity bits<br>where 2ʳ ≥ m + r + 1</div></div>
+  <div class="info-block"><h4>Error Correction</h4><p>At the receiver, all parity checks are re-run. The sum of failed check positions gives the syndrome — the exact position of the flipped bit.</p><div class="formula-box">Syndrome = S₁S₂S₃… → error bit index</div></div>
+  <div class="info-block"><h4>Even vs Odd Parity</h4><p>Even: parity bit makes an even count of 1s in its group. Odd: parity bit makes an odd count. Both variants work — the receiver must know which was used.</p></div>
+  <div class="info-block"><h4>Characteristics</h4><p>Detects and corrects all single-bit errors. Can detect (but not correct) two-bit errors. Widely used in ECC RAM.</p></div>
+</div>`;
+
+        function selectMode(m) {
+            State.mode = m;
+            document.getElementById('card-crc').classList.toggle('selected', m === 'crc');
+            document.getElementById('card-ham').classList.toggle('selected', m === 'hamming');
+            const panel = document.getElementById('info-panel');
+            document.getElementById('info-inner').innerHTML = m === 'crc' ? CRC_HTML : HAM_HTML;
+            panel.style.borderColor = m === 'crc' ? 'rgba(59,130,246,.3)' : 'rgba(139,92,246,.3)';
+            panel.classList.add('visible');
+            document.getElementById('begin-wrap').style.display = 'block';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        // Restore previous selection if any
+        if (State.data) {
+            selectMode(State.mode);
+        }
+    </script>
+</body>
+
+</html>

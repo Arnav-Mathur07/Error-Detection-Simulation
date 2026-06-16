@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>NetSim — The Channel</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .channel-wrap {
+            width: 100%;
+            max-width: 900px;
+            margin-top: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Stream ribbon */
+        .stream-ribbon {
+            background: rgba(0, 0, 0, .4);
+            border: 1px solid var(--glass-b);
+            border-radius: var(--radius);
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stream-ribbon::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -60px;
+            right: -60px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, .4) 30%, rgba(59, 130, 246, .4) 70%, transparent);
+            transform: translateY(-50%);
+            animation: streamPulse 2s ease infinite;
+        }
+
+        @keyframes streamPulse {
+
+            0%,
+            100% {
+                opacity: .4;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .bits-channel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .bit-box.channel-bit {
+            cursor: pointer;
+            width: 48px;
+            height: 54px;
+            font-size: 1.3rem;
+        }
+
+        .bit-box.channel-bit:hover {
+            transform: translateY(-4px) scale(1.1);
+            filter: brightness(1.3);
+        }
+
+        .bit-box.channel-bit.error {
+            cursor: pointer;
+        }
+
+        .flip-hint {
+            text-align: center;
+            font-size: .8rem;
+            color: var(--muted);
+            margin-top: 1rem;
+        }
+
+        /* Error counter */
+        .err-counter {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            background: var(--red-dim);
+            color: var(--red);
+            border: 1px solid rgba(239, 68, 68, .3);
+            border-radius: 2rem;
+            padding: .35rem 1rem;
+            font-size: .85rem;
+            font-weight: 700;
+        }
+
+        /* Actions bar */
+        .actions-bar {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .packet-anim {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, .06);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: .5rem;
+        }
+
+        .packet-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--green));
+            border-radius: 2px;
+            width: 0%;
+            transition: width .8s ease;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="nav-strip">
+        <div class="nav-logo">Net<span>Sim</span></div>
+        <div class="nav-steps"></div>
+    </nav>
+
+    <div class="page-root page-wrap">
+        <h1 class="section-title">⚡ The Channel</h1>
+        <p class="section-sub">Data is being transmitted. Click any bit to introduce a transmission error.</p>
+
+        <div class="channel-wrap">
+
+            <div class="card"
+                style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+                <div>
+                    <div
+                        style="font-size:.78rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.07em;">
+                        Mode</div>
+                    <div id="mode-badge" style="font-size:1.1rem;font-weight:800;margin-top:.2rem;"></div>
+                </div>
+                <div>
+                    <div
+                        style="font-size:.78rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.07em;">
+                        Original Codeword</div>
+                    <div id="codeword-info"
+                        style="font-family:var(--mono);letter-spacing:2px;margin-top:.2rem;font-size:1rem;"></div>
+                </div>
+                <div class="err-counter" id="err-counter">🚫 0 errors introduced</div>
+            </div>
+
+            <!-- Transmission progress bar -->
+            <div>
+                <div style="font-size:.78rem;color:var(--muted);margin-bottom:.25rem;">Transmission in progress…</div>
+                <div class="packet-anim">
+                    <div class="packet-fill" id="pkt-fill"></div>
+                </div>
+            </div>
+
+            <!-- The bit stream -->
+            <div class="stream-ribbon">
+                <div class="bits-channel" id="channel-bits"></div>
+                <div class="flip-hint">👆 Click any bit to simulate a transmission error</div>
+            </div>
+
+            <!-- Legend -->
+            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:.78rem;color:var(--muted);">
+                <span><span
+                        style="display:inline-block;width:12px;height:12px;background:#1e3a8a;border:1.5px solid #3b82f6;border-radius:3px;margin-right:5px;vertical-align:middle;"></span>Data
+                    Bit</span>
+                <span><span
+                        style="display:inline-block;width:12px;height:12px;background:#3b0764;border:1.5px solid #8b5cf6;border-radius:3px;margin-right:5px;vertical-align:middle;"></span>Parity/Remainder
+                    Bit</span>
+                <span><span
+                        style="display:inline-block;width:12px;height:12px;background:#7f1d1d;border:1.5px solid #ef4444;border-radius:3px;margin-right:5px;vertical-align:middle;"></span>Flipped
+                    (Error)</span>
+            </div>
+
+            <!-- Actions -->
+            <div class="actions-bar">
+                <button class="btn btn-violet" onclick="goExplain()">📘 Explain This Algorithm</button>
+                <button class="btn btn-primary" onclick="goReceiver()">📥 Send to Receiver →</button>
+                <button class="btn btn-ghost" onclick="resetBits()">↺ Reset Errors</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        buildNav('channel.html');
+        const codeword = State.codeword;
+        const mode = State.mode;
+        let errCount = 0;
+        let originalBitTypes = [];
+
+        document.getElementById('mode-badge').textContent = mode === 'crc' ? '🔁 CRC' : '🛡️ Hamming Code';
+        document.getElementById('codeword-info').textContent = codeword;
+
+        // Build class map
+        function buildClassMap() {
+            const n = codeword.length;
+            const map = {};
+            if (mode === 'crc') {
+                const dataLen = State.data.length;
+                codeword.split('').forEach((_, i) => { map[i] = i < dataLen ? 'data' : 'rem'; });
+            } else {
+                codeword.split('').forEach((_, i) => {
+                    const pos = n - i;
+                    map[i] = (pos & (pos - 1)) === 0 ? 'parity' : 'data';
+                });
+            }
+            return map;
+        }
+
+        const clsMap = buildClassMap();
+        codeword.split('').forEach((_, i) => originalBitTypes.push(clsMap[i]));
+
+        function renderChannel() {
+            const container = document.getElementById('channel-bits');
+            const currentBits = Array.from(container.querySelectorAll('.channel-bit')).map(b => b.textContent);
+            container.innerHTML = '';
+            const bits = currentBits.length ? currentBits : codeword.split('');
+            bits.forEach((b, i) => {
+                const box = document.createElement('div');
+                const isErr = b !== codeword[i];
+                box.className = `bit-box channel-bit flow-in ${isErr ? 'error' : originalBitTypes[i]}`;
+                box.style.animationDelay = (i * 0.03) + 's';
+                box.textContent = b;
+                box.title = 'Click to flip this bit';
+                box.addEventListener('click', () => flipBit(box, i));
+                container.appendChild(box);
+            });
+        }
+
+        // Initial render with animation
+        setTimeout(() => {
+            renderChannel();
+            // animate progress bar
+            setTimeout(() => document.getElementById('pkt-fill').style.width = '100%', 200);
+        }, 100);
+
+        function flipBit(box, idx) {
+            const was = box.textContent;
+            box.textContent = was === '1' ? '0' : '1';
+            const isErr = box.textContent !== codeword[idx];
+            box.className = `bit-box channel-bit ${isErr ? 'error' : originalBitTypes[idx]}`;
+            // Ripple effect
+            box.style.transform = 'scale(1.3)';
+            setTimeout(() => box.style.transform = '', 200);
+            // Recount errors
+            errCount = Array.from(document.querySelectorAll('.channel-bit'))
+                .filter((b, i) => b.textContent !== codeword[i]).length;
+            document.getElementById('err-counter').textContent = `🚫 ${errCount} error${errCount !== 1 ? 's' : ''} introduced`;
+            document.getElementById('err-counter').style.background = errCount ? 'rgba(239,68,68,.2)' : 'var(--red-dim)';
+        }
+
+        function resetBits() {
+            errCount = 0;
+            document.getElementById('err-counter').textContent = '🚫 0 errors introduced';
+            document.getElementById('channel-bits').innerHTML = '';
+            renderChannel();
+        }
+
+        function goReceiver() {
+            State.received = Array.from(document.querySelectorAll('.channel-bit')).map(b => b.textContent).join('');
+            State.fromChannel = true;
+            navigate('receiver.html');
+        }
+
+        function goExplain() {
+            State.fromChannel = true;
+            navigate('explanation.html');
+        }
+    </script>
+</body>
+
+</html>

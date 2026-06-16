@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>NetSim — Receiver</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .rx-wrap {
+            width: 100%;
+            max-width: 960px;
+            margin-top: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Verdict Card */
+        .verdict-card {
+            border-radius: var(--radius);
+            padding: 1.5rem 2rem;
+            animation: pageIn .5s ease both;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 0.4rem;
+        }
+
+        .verdict-card.pass {
+            background: var(--green-dim);
+            border: 2px solid rgba(16, 185, 129, .4);
+        }
+
+        .verdict-card.fail {
+            background: var(--red-dim);
+            border: 2px solid rgba(239, 68, 68, .4);
+        }
+
+        .verdict-card.warn {
+            background: rgba(245, 158, 11, .08);
+            border: 2px solid rgba(245, 158, 11, .4);
+        }
+
+        .verdict-icon {
+            font-size: 2.2rem;
+            flex-shrink: 0;
+            animation: pop-icon .6s cubic-bezier(.4, 0, .2, 1) .1s both;
+        }
+
+        @keyframes pop-icon {
+            from {
+                transform: scale(0) rotate(-20deg);
+                opacity: 0;
+            }
+
+            50% {
+                transform: scale(1.2) rotate(5deg);
+            }
+
+            to {
+                transform: scale(1) rotate(0);
+                opacity: 1;
+            }
+        }
+
+        .verdict-text {
+            font-size: 1.15rem;
+            font-weight: 900;
+        }
+
+        .verdict-sub {
+            font-size: .85rem;
+            color: var(--muted);
+            margin-top: .2rem;
+        }
+
+        /* Glow orb in verdict */
+        .verdict-orb {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            filter: blur(40px);
+            opacity: .2;
+            z-index: 0;
+            animation: pulseBig 3s ease infinite;
+        }
+
+        @keyframes pulseBig {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.3);
+            }
+        }
+
+        .pass .verdict-orb {
+            background: var(--green);
+        }
+
+        .fail .verdict-orb {
+            background: var(--red);
+        }
+
+        .warn .verdict-orb {
+            background: var(--amber);
+        }
+
+        .verdict-card>*:not(.verdict-orb) {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Section panels */
+        .rx-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media(max-width:700px) {
+            .rx-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .rx-panel {
+            background: var(--glass);
+            border: 1px solid var(--glass-b);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+        }
+
+        .rx-panel-title {
+            font-size: .72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+
+        /* CRC remainder visualizer */
+        .rem-display {
+            font-family: var(--mono);
+            font-size: 1.3rem;
+            letter-spacing: 4px;
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+            margin: 1rem 0;
+            border: 2px solid;
+        }
+
+        .rem-zero {
+            border-color: var(--green);
+            color: var(--green);
+            background: var(--green-dim);
+        }
+
+        .rem-nonz {
+            border-color: var(--red);
+            color: var(--red);
+            background: var(--red-dim);
+        }
+
+        /* Ham error position highlight */
+        .err-arrow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: .7rem;
+            font-weight: 700;
+            color: var(--red);
+            margin-top: .25rem;
+            animation: bounce .6s ease infinite alternate;
+        }
+
+        /* Syndrome bits */
+        .syndrome-row {
+            display: flex;
+            gap: .5rem;
+            flex-wrap: wrap;
+            align-items: center;
+            font-family: var(--mono);
+        }
+
+        .syn-bit {
+            width: 34px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 700;
+            background: #1e293b;
+            border: 1.5px solid var(--glass-b);
+        }
+
+        .syn-bit.one {
+            background: var(--red-dim);
+            color: var(--red);
+            border-color: rgba(239, 68, 68, .4);
+        }
+
+        .syn-bit.zero {
+            background: var(--green-dim);
+            color: var(--green);
+            border-color: rgba(16, 185, 129, .4);
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="nav-strip">
+        <div class="nav-logo">Net<span>Sim</span></div>
+        <div class="nav-steps"></div>
+    </nav>
+
+    <div class="page-root page-wrap">
+        <h1 class="section-title">📥 Receiver</h1>
+        <p class="section-sub">Analyzing received data for errors and correcting if possible.</p>
+
+        <div class="rx-wrap" id="rx-content">
+            <div class="card" style="text-align:center;padding:3rem;">
+                <div style="font-size:2rem;margin-bottom:1rem;">⏳</div>
+                <div style="color:var(--muted);">Processing received frame…</div>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:1rem;">
+            <button class="btn btn-ghost" onclick="navigate('channel.html')">← Back to Channel</button>
+            <button class="btn btn-primary" onclick="navigate('index.html')">🔄 Restart Simulation</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        buildNav('receiver.html');
+        const received = State.received || State.codeword;
+        const mode = State.mode;
+        const parity = State.parity;
+
+        if (!received) {
+            document.getElementById('rx-content').innerHTML = `<div class="card" style="text-align:center;padding:3rem;color:var(--red)">
+    ⚠️ No data to analyze. Please start from the beginning.<br><br>
+    <button class="btn btn-primary" onclick="navigate('index.html')">Go to Home</button>
+  </div>`;
+        } else {
+            setTimeout(() => buildReceiver(), 300);
+        }
+
+        function buildReceiver() {
+            const wrap = document.getElementById('rx-content');
+            wrap.innerHTML = '';
+            if (mode === 'crc') buildCRCReceiver(wrap);
+            else buildHammingReceiver(wrap);
+        }
+
+        /* ── CRC Receiver ─────────────────────────────────────────────── */
+        function buildCRCReceiver(wrap) {
+            const poly = State.poly;
+            const { pass, rem, steps } = crcCheck(received, poly);
+
+            // Received bits
+            const rxCard = document.createElement('div'); rxCard.className = 'card';
+            rxCard.innerHTML = `<div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.75rem">Received Frame</div>`;
+            const rxRow = document.createElement('div'); rxRow.className = 'bits-row';
+            const dataLen = State.data.length;
+            received.split('').forEach((b, i) => {
+                const isOrig = b === State.codeword[i];
+                const baseType = i < dataLen ? 'data' : 'rem';
+                const { wrap: bw } = makeBitBox(b, isOrig ? baseType : 'error', '', i * 0.03);
+                rxRow.appendChild(bw);
+            });
+            rxCard.appendChild(rxRow);
+            wrap.appendChild(rxCard);
+
+            // Verdict
+            const vCard = document.createElement('div');
+            vCard.className = `verdict-card ${pass ? 'pass' : 'fail'}`;
+            vCard.innerHTML = `
+    <div class="verdict-orb"></div>
+    <div class="verdict-icon">${pass ? '✅' : '❌'}</div>
+    <div class="verdict-text">${pass ? 'NO ERRORS DETECTED' : 'DATA CORRUPTED!'}</div>
+    <div class="verdict-sub">${pass
+                    ? 'The CRC remainder is all zeros. The frame arrived intact.'
+                    : 'CRC check failed. Non-zero remainder detected. Requesting retransmission.'}</div>`;
+            wrap.appendChild(vCard);
+
+            // Remainder display
+            const remCard = document.createElement('div'); remCard.className = 'card';
+            remCard.innerHTML = `
+    <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.75rem">CRC Verification Division</div>
+    <div class="rem-display ${pass ? 'rem-zero' : 'rem-nonz'}">Remainder = ${rem}</div>
+    <div style="font-size:.82rem;color:var(--muted);text-align:center">${pass
+                    ? '🟢 Received ÷ G(x) = 0 → Valid'
+                    : '🔴 Received ÷ G(x) ≠ 0 → Corrupted'}</div>`;
+            wrap.appendChild(remCard);
+
+            // Division steps
+            const stCard = document.createElement('div'); stCard.className = 'card';
+            stCard.innerHTML = `<div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.75rem">XOR Division Steps at Receiver</div>`;
+            const tbl = document.createElement('table'); tbl.className = 'syndrome-table';
+            tbl.innerHTML = `<thead><tr><th>#</th><th>Dividend</th><th>Divisor</th><th>XOR Result</th></tr></thead>`;
+            const tb = document.createElement('tbody');
+            steps.forEach((s, i) => {
+                const tr = document.createElement('tr');
+                if (i === steps.length - 1) tr.className = 'highlight-row';
+                tr.style.animationDelay = (i * .05) + 's'; tr.style.animation = 'slideRow .3s ease both';
+                tr.innerHTML = `<td style="color:var(--muted)">${i + 1}</td><td style="font-family:var(--mono);color:#93c5fd">${s.dividend}</td><td style="font-family:var(--mono);color:#c4b5fd">${s.divisor}</td><td style="font-family:var(--mono);color:#6ee7b7">${s.xored}</td>`;
+                tb.appendChild(tr);
+            });
+            tbl.appendChild(tb); stCard.appendChild(tbl);
+            wrap.appendChild(stCard);
+        }
+
+        /* ── Hamming Receiver ─────────────────────────────────────────── */
+        function buildHammingReceiver(wrap) {
+            const { err, errPos, correctedCodeword, extractedData, syndromeCalcs } = hammingDecode(received, parity);
+
+            // Received bits
+            const rxCard = document.createElement('div'); rxCard.className = 'card';
+            rxCard.innerHTML = `<div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.75rem">Received Codeword</div>`;
+            const rxRow = document.createElement('div'); rxRow.className = 'bits-row';
+            received.split('').forEach((b, i) => {
+                const pos = received.length - i;
+                const isParity = (pos & (pos - 1)) === 0;
+                const isErrBit = err && pos === errPos;
+                const { wrap: bw } = makeBitBox(b, isErrBit ? 'error' : (isParity ? 'parity' : 'data'), `P${pos}`, i * 0.03);
+                rxRow.appendChild(bw);
+            });
+            rxCard.appendChild(rxRow);
+            wrap.appendChild(rxCard);
+
+            // Verdict
+            const vCard = document.createElement('div');
+            vCard.className = `verdict-card ${err ? 'warn' : 'pass'}`;
+            vCard.innerHTML = `
+    <div class="verdict-orb"></div>
+    <div class="verdict-icon">${err ? '⚠️' : '✅'}</div>
+    <div class="verdict-text">${err ? `ERROR DETECTED AT BIT #${errPos}` : 'NO ERROR DETECTED'}</div>
+    <div class="verdict-sub">${err
+                    ? `Syndrome = ${errPos} (binary: ${errPos.toString(2)}) → Bit at position ${errPos} was flipped. Auto-correcting…`
+                    : 'All parity checks passed. The codeword is valid.'}</div>`;
+            wrap.appendChild(vCard);
+
+            // Syndrome table
+            const synCard = document.createElement('div'); synCard.className = 'card';
+            synCard.innerHTML = `<div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.75rem">🧮 Syndrome Calculation</div>`;
+            const synRow = document.createElement('div'); synRow.style.cssText = 'display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;';
+            syndromeCalcs.forEach(s => {
+                const sbit = document.createElement('div');
+                sbit.className = `syn-bit ${s.syndrome ? 'one' : 'zero'}`;
+                sbit.title = `P${s.pos}: ${s.syndrome}`;
+                sbit.textContent = s.syndrome;
+                synRow.appendChild(sbit);
+            });
+            const synLabel = document.createElement('div');
+            synLabel.style.cssText = 'font-size:.8rem;color:var(--muted);margin-bottom:1rem;font-family:var(--mono)';
+            synLabel.textContent = `Syndrome bits: ${syndromeCalcs.map(s => s.syndrome).join('')} → Error at bit #${errPos || 0}`;
+            synCard.appendChild(synRow); synCard.appendChild(synLabel);
+
+            const stbl = document.createElement('table'); stbl.className = 'syndrome-table';
+            stbl.innerHTML = `<thead><tr><th>Check Bit P</th><th>Position</th><th>Covers</th><th>Parity Check Result</th><th>Syndrome Bit</th></tr></thead>`;
+            const stb = document.createElement('tbody');
+            syndromeCalcs.forEach((s, i) => {
+                const tr = document.createElement('tr');
+                if (s.syndrome) tr.className = 'highlight-row';
+                tr.style.animationDelay = (i * .07) + 's'; tr.style.animation = 'slideRow .3s ease both';
+                tr.innerHTML = `<td style="color:var(--violet);font-weight:700">P${s.pos}</td><td>${s.pos}</td><td>[${s.covers.join(', ')}]</td><td style="font-family:var(--mono)">${s.val}</td><td style="font-weight:800;color:${s.syndrome ? 'var(--red)' : 'var(--green)'}">${s.syndrome} ${s.syndrome ? '❌' : '✔'}</td>`;
+                stb.appendChild(tr);
+            });
+            stbl.appendChild(stb); synCard.appendChild(stbl);
+            wrap.appendChild(synCard);
+
+            // Corrected codeword
+            if (err) {
+                const corrCard = document.createElement('div'); corrCard.className = 'card';
+                corrCard.innerHTML = `<div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--green);margin-bottom:.75rem">🔧 Corrected Codeword (Bit #${errPos} Flipped Back)</div>`;
+                const corrRow = document.createElement('div'); corrRow.className = 'bits-row';
+                const n = received.length;
+                correctedCodeword.split('').forEach((b, i) => {
+                    const pos = n - i;
+                    const isParity = (pos & (pos - 1)) === 0;
+                    const wasCorrected = err && pos === errPos;
+                    const { wrap: bw } = makeBitBox(b, wasCorrected ? 'corrected' : (isParity ? 'parity' : 'data'), wasCorrected ? `FIX!` : `P${pos}`, i * 0.04);
+                    corrRow.appendChild(bw);
+                });
+                corrCard.appendChild(corrRow);
+                wrap.appendChild(corrCard);
+            }
+
+            // Extracted data
+            const exCard = document.createElement('div'); exCard.className = 'card';
+            exCard.innerHTML = `<div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.75rem">📦 Extracted Original Data</div>`;
+            const exRow = document.createElement('div'); exRow.className = 'bits-row';
+            extractedData.split('').forEach((b, i) => {
+                const { wrap: bw } = makeBitBox(b, 'data', `D${i + 1}`, i * 0.04);
+                exRow.appendChild(bw);
+            });
+            exCard.appendChild(exRow);
+            const matchNote = document.createElement('div');
+            matchNote.style.cssText = 'margin-top:.75rem;padding:.6rem 1rem;border-radius:8px;font-size:.85rem;font-weight:700;';
+            if (extractedData === State.data) {
+                matchNote.style.cssText += 'background:var(--green-dim);color:var(--green);';
+                matchNote.textContent = '✅ Perfectly matches original transmitted data: ' + State.data;
+            } else {
+                matchNote.style.cssText += 'background:var(--red-dim);color:var(--red);';
+                matchNote.textContent = `⚠️ Does not match original (${State.data}). Likely 2+ errors introduced.`;
+            }
+            exCard.appendChild(matchNote);
+            wrap.appendChild(exCard);
+        }
+    </script>
+</body>
+
+</html>

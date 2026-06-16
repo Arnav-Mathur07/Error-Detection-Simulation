@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>NetSim — Transmitter</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .tx-grid {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 2rem;
+            width: 100%;
+            max-width: 1100px;
+            margin-top: 2rem;
+        }
+
+        @media(max-width:860px) {
+            .tx-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Visualizer Panel */
+        .viz-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .viz-stage {
+            background: rgba(0, 0, 0, .3);
+            border: 1px solid var(--glass-b);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            min-height: 140px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .viz-stage-title {
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .1em;
+            color: var(--muted);
+            margin-bottom: .75rem;
+            display: flex;
+            align-items: center;
+            gap: .4rem;
+        }
+
+        .arrow-row {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+        }
+
+        .arrow-icon {
+            font-size: 1.4rem;
+            color: var(--muted);
+            animation: bounce .8s ease infinite alternate;
+        }
+
+        @keyframes bounce {
+            to {
+                transform: translateX(4px);
+            }
+        }
+
+        /* CRC long-division table */
+        .long-div-table {
+            width: 100%;
+            font-family: var(--mono);
+            font-size: .82rem;
+            border-collapse: collapse;
+        }
+
+        .long-div-table td {
+            padding: .3rem .6rem;
+            border-bottom: 1px solid rgba(255, 255, 255, .04);
+        }
+
+        .long-div-table .step-num {
+            color: var(--muted);
+            width: 3rem;
+        }
+
+        .long-div-table .step-bits {
+            letter-spacing: 3px;
+        }
+
+        .long-div-table .step-bits .b-data {
+            color: #93c5fd;
+        }
+
+        .long-div-table .step-bits .b-poly {
+            color: #c4b5fd;
+        }
+
+        .long-div-table .step-bits .b-xor {
+            color: #6ee7b7;
+        }
+
+        .row-active {
+            background: rgba(59, 130, 246, .08);
+        }
+
+        .row-final {
+            background: rgba(16, 185, 129, .08);
+        }
+
+        .xor-line {
+            border-top: 1px solid rgba(255, 255, 255, .15) !important;
+        }
+
+        /* Hamming bit row with position labels */
+        .ham-viz {
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+        }
+
+        .ham-bit-row {
+            display: flex;
+            gap: .3rem;
+            flex-wrap: wrap;
+        }
+
+        .bit-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: .2rem;
+        }
+
+        .pos-label {
+            font-family: var(--mono);
+            font-size: .6rem;
+            color: var(--muted);
+        }
+
+        .parity-question {
+            background: rgba(139, 92, 246, .2);
+            border-color: var(--violet);
+            color: var(--violet);
+        }
+
+        .parity-resolved {
+            animation: pResolve .4s cubic-bezier(.4, 0, .2, 1) both;
+        }
+
+        @keyframes pResolve {
+            0% {
+                transform: scale(1.3) rotate(-5deg);
+                background: rgba(139, 92, 246, .5);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        /* Coverage highlight */
+        .bit-box.covered {
+            outline: 3px solid rgba(245, 158, 11, .6);
+            outline-offset: 2px;
+        }
+
+        /* Step log */
+        .step-log {
+            background: rgba(0, 0, 0, .25);
+            border-radius: 10px;
+            padding: 1rem;
+            font-family: var(--mono);
+            font-size: .78rem;
+            color: var(--muted);
+            max-height: 180px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: .3rem;
+        }
+
+        .log-line {
+            animation: slideRow .2s ease both;
+        }
+
+        .log-line.done {
+            color: var(--green);
+        }
+
+        .log-line.active {
+            color: var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="nav-strip">
+        <div class="nav-logo">Net<span>Sim</span></div>
+        <div class="nav-steps"></div>
+    </nav>
+
+    <div class="page-root page-wrap">
+        <h1 class="section-title">📤 Transmitter</h1>
+        <p class="section-sub">Enter your data and watch the encoding process visualized step by step.</p>
+
+        <div class="tx-grid">
+            <!-- Input Panel -->
+            <div class="card" style="display:flex;flex-direction:column;gap:1.25rem;height:fit-content;">
+                <div class="field-group">
+                    <label class="field-label">Data Bits (binary)</label>
+                    <input class="field-input" id="inp-data" type="text" placeholder="e.g. 1011001" maxlength="16"
+                        spellcheck="false">
+                </div>
+                <div class="field-group" id="poly-group">
+                    <label class="field-label">Polynomial (CRC)</label>
+                    <input class="field-input" id="inp-poly" type="text" placeholder="e.g. 1101" maxlength="12"
+                        spellcheck="false">
+                </div>
+                <div class="field-group" id="parity-group" style="display:none;">
+                    <label class="field-label">Parity Type</label>
+                    <div class="parity-toggle">
+                        <button class="parity-btn active" id="btn-even" onclick="setParity('even')">Even Parity</button>
+                        <button class="parity-btn" id="btn-odd" onclick="setParity('odd')">Odd Parity</button>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="btn-encode" onclick="runEncode()" style="width:100%">⚙️ Encode &amp;
+                    Visualize</button>
+                <button class="btn btn-green" id="btn-send" onclick="navigate('channel.html')"
+                    style="width:100%;display:none;">
+                    📡 Send to Channel →
+                </button>
+                <div id="err-msg" style="color:var(--red);font-size:.82rem;display:none;"></div>
+            </div>
+
+            <!-- Visualization Panel -->
+            <div class="viz-panel">
+                <!-- Stage 1: Input -->
+                <div class="viz-stage">
+                    <div class="viz-stage-title">① Original Data Bits</div>
+                    <div class="bits-row" id="viz-input"><span style="color:var(--muted);font-size:.85rem">Awaiting
+                            input…</span></div>
+                </div>
+
+                <!-- Stage 2: Append / Parity Question Marks -->
+                <div class="viz-stage" id="stage-append">
+                    <div class="viz-stage-title" id="stage2-title">② Processing</div>
+                    <div id="viz-step2" style="font-size:.85rem;color:var(--muted)">Run encode to see this step.</div>
+                </div>
+
+                <!-- Stage 3: Division / Parity Resolution -->
+                <div class="viz-stage" id="stage-div" style="min-height:200px;">
+                    <div class="viz-stage-title" id="stage3-title">③ Calculation</div>
+                    <div id="viz-step3"></div>
+                </div>
+
+                <!-- Stage 4: Final Codeword -->
+                <div class="viz-stage" style="border-color:rgba(16,185,129,.25);">
+                    <div class="viz-stage-title">④ Final Encoded Codeword</div>
+                    <div class="bits-row" id="viz-codeword"><span style="color:var(--muted);font-size:.85rem">—</span>
+                    </div>
+                    <div style="margin-top:.6rem;font-size:.75rem;color:var(--muted);display:flex;gap:1.2rem;"
+                        id="legend" style="display:none!important">
+                        <span><span
+                                style="display:inline-block;width:10px;height:10px;background:#1e3a8a;border:1px solid #3b82f6;border-radius:2px;margin-right:4px;"></span>Data</span>
+                        <span><span
+                                style="display:inline-block;width:10px;height:10px;background:#064e3b;border:1px solid #10b981;border-radius:2px;margin-right:4px;"></span>Remainder/Parity</span>
+                        <span><span
+                                style="display:inline-block;width:10px;height:10px;background:#3b0764;border:1px solid #8b5cf6;border-radius:2px;margin-right:4px;"></span>Parity
+                            bit</span>
+                    </div>
+                </div>
+
+                <!-- Step Log -->
+                <div class="step-log" id="step-log"><span style="color:var(--muted)">Step log will appear here after
+                        encoding.</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        buildNav('transmit.html');
+        const inpData = document.getElementById('inp-data');
+        const inpPoly = document.getElementById('inp-poly');
+        let parityMode = 'even';
+
+        // Restore from state
+        if (State.data) inpData.value = State.data;
+        if (State.poly) inpPoly.value = State.poly;
+
+        // Show correct inputs depending on mode
+        if (State.mode === 'hamming') {
+            document.getElementById('poly-group').style.display = 'none';
+            document.getElementById('parity-group').style.display = 'block';
+        }
+        if (State.parity) {
+            parityMode = State.parity;
+            document.getElementById('btn-even').classList.toggle('active', parityMode === 'even');
+            document.getElementById('btn-odd').classList.toggle('active', parityMode === 'odd');
+        }
+
+        function setParity(p) {
+            parityMode = p; State.parity = p;
+            document.getElementById('btn-even').classList.toggle('active', p === 'even');
+            document.getElementById('btn-odd').classList.toggle('active', p === 'odd');
+        }
+
+        function showErr(msg) {
+            const el = document.getElementById('err-msg');
+            el.textContent = msg; el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 3000);
+        }
+
+        function addLog(log, text, cls = '') {
+            const d = document.createElement('div');
+            d.className = 'log-line ' + cls; d.textContent = text;
+            log.appendChild(d); log.scrollTop = log.scrollHeight;
+        }
+
+        function runEncode() {
+            const data = inpData.value.trim();
+            if (!/^[01]+$/.test(data)) return showErr('Data must contain only 0s and 1s!');
+            State.data = data;
+
+            const log = document.getElementById('step-log');
+            log.innerHTML = '';
+            document.getElementById('legend').style.display = 'flex';
+            document.getElementById('btn-send').style.display = 'block';
+
+            // Stage 1: input bits
+            renderBitRow(document.getElementById('viz-input'), data,
+                Object.fromEntries(data.split('').map((_, i) => [i, 'data'])));
+
+            if (State.mode === 'crc') runCRC(data, log);
+            else runHamming(data, log);
+        }
+
+        /* ── CRC Visual ─────────────────────────────────────────────────── */
+        function runCRC(data, log) {
+            const poly = inpPoly.value.trim();
+            if (!/^[01]+$/.test(poly) || poly.length < 2) return showErr('Polynomial must be binary with ≥ 2 bits!');
+            State.poly = poly;
+
+            addLog(log, `Mode: CRC  |  Data: ${data}  |  Polynomial: ${poly}`);
+
+            // Stage 2: Append zeros
+            document.getElementById('stage2-title').textContent = '② Append (r = poly_len - 1) Zeros';
+            const appended = data + '0'.repeat(poly.length - 1);
+            const s2 = document.getElementById('viz-step2');
+            s2.innerHTML = '';
+            const s2row = document.createElement('div'); s2row.className = 'bits-row';
+            appended.split('').forEach((b, i) => {
+                const { wrap, box } = makeBitBox(b, i < data.length ? 'data' : 'rem', i < data.length ? '' : '0', i * 0.04);
+                s2row.appendChild(wrap);
+            });
+            s2.appendChild(s2row);
+            addLog(log, `Appended ${poly.length - 1} zeros: ${appended}`, 'active');
+
+            // Stage 3: XOR Division Table
+            document.getElementById('stage3-title').textContent = '③ XOR Polynomial Long Division';
+            const { codeword, rem, steps } = crcEncode(data, poly);
+
+            const tbl = document.createElement('table'); tbl.className = 'long-div-table';
+            function colorBits(str, cls) {
+                return str.split('').map(b => `<span class="b-${cls}">${b}</span>`).join('');
+            }
+            steps.forEach((s, idx) => {
+                const tr1 = document.createElement('tr');
+                tr1.className = idx === steps.length - 1 ? 'row-final' : (idx === 0 ? 'row-active' : '');
+                tr1.style.animationDelay = (idx * 0.05) + 's';
+                tr1.style.animation = 'slideRow .3s ease both';
+                tr1.innerHTML = `<td class="step-num">S${idx + 1}</td><td class="step-bits">${colorBits(s.dividend, 'data')} ÷ ${colorBits(s.divisor, 'poly')}</td>`;
+                tbl.appendChild(tr1);
+                const tr2 = document.createElement('tr');
+                tr2.className = 'xor-line';
+                tr2.style.animationDelay = ((idx + .5) * 0.05) + 's';
+                tr2.style.animation = 'slideRow .3s ease both';
+                tr2.innerHTML = `<td></td><td class="step-bits" style="padding-left:1rem">${colorBits(s.xored, 'xor')} ← XOR Result</td>`;
+                tbl.appendChild(tr2);
+                addLog(log, `Step ${idx + 1}: ${s.dividend} ⊕ ${s.divisor} = ${s.xored}`);
+            });
+            document.getElementById('viz-step3').innerHTML = '';
+            document.getElementById('viz-step3').appendChild(tbl);
+
+            // Stage 4: Final codeword
+            const cw = document.getElementById('viz-codeword');
+            cw.innerHTML = '';
+            const clsMap = {};
+            codeword.split('').forEach((_, i) => { clsMap[i] = i < data.length ? 'data' : 'rem'; });
+            const lblMap = {};
+            codeword.split('').forEach((_, i) => { lblMap[i] = i < data.length ? `D${i + 1}` : `R${i - data.length + 1}`; });
+            renderBitRow(cw, codeword, clsMap, lblMap);
+
+            State.codeword = codeword;
+            addLog(log, `✅ Codeword = ${codeword}  (data: ${data} + CRC: ${rem})`, 'done');
+        }
+
+        /* ── Hamming Visual ──────────────────────────────────────────────── */
+        function animateParityCalcs(parityCalcs, positions, bits, n, log, onDone) {
+            const hamViz = document.getElementById('viz-step3');
+            // Render full row with ? for parity bits first
+            hamViz.innerHTML = '';
+            const row = document.createElement('div'); row.className = 'ham-bit-row';
+            const boxRefs = [];
+            positions.forEach(({ idx, isParity }, i) => {
+                const col = document.createElement('div'); col.className = 'bit-col';
+                const box = document.createElement('div');
+                box.className = 'bit-box ' + (isParity ? 'parity-question' : 'data') + ' flow-in';
+                box.style.animationDelay = (i * 0.04) + 's';
+                box.textContent = isParity ? '?' : bits[i];
+                box.id = `hbox-${idx}`;
+                const lbl = document.createElement('div'); lbl.className = 'pos-label'; lbl.textContent = `P${idx}`;
+                col.appendChild(box); col.appendChild(lbl);
+                row.appendChild(col); boxRefs.push({ idx, isParity, box });
+            });
+            hamViz.appendChild(row);
+
+            // Sequentially resolve each parity bit
+            let p = 0;
+            function resolveNext() {
+                if (p >= parityCalcs.length) { onDone(); return; }
+                const calc = parityCalcs[p++];
+                // Highlight covered positions
+                calc.covers.forEach(ci => {
+                    const b = document.getElementById(`hbox-${ci}`);
+                    if (b) b.classList.add('covered');
+                });
+                addLog(log, `P${calc.pos}: covers positions [${calc.covers.join(',')}] → XOR = ${calc.val}`, 'active');
+                setTimeout(() => {
+                    calc.covers.forEach(ci => {
+                        const b = document.getElementById(`hbox-${ci}`);
+                        if (b) b.classList.remove('covered');
+                    });
+                    const pbox = document.getElementById(`hbox-${calc.pos}`);
+                    if (pbox) {
+                        pbox.textContent = calc.val;
+                        pbox.classList.remove('parity-question');
+                        pbox.classList.add('parity', 'parity-resolved');
+                    }
+                    addLog(log, `P${calc.pos} = ${calc.val} ✔`, 'done');
+                    setTimeout(resolveNext, 450);
+                }, 700);
+            }
+            resolveNext();
+        }
+
+        function runHamming(data, log) {
+            const result = hammingEncode(data, parityMode);
+            const { codeword, r, positions, bits, parityCalcs } = result;
+
+            addLog(log, `Mode: Hamming  |  Data(m=${data.length}) → r=${r} parity bits → n=${data.length + r} total`);
+            addLog(log, `Parity type: ${parityMode.toUpperCase()}`);
+
+            // Stage 2: Show skeleton
+            document.getElementById('stage2-title').textContent = '② Place Data at Non-Power-of-2 Positions';
+            const s2 = document.getElementById('viz-step2'); s2.innerHTML = '';
+            const row2 = document.createElement('div'); row2.className = 'ham-bit-row';
+            positions.forEach(({ idx, isParity }, i) => {
+                const col = document.createElement('div'); col.className = 'bit-col';
+                const box = document.createElement('div');
+                box.className = 'bit-box ' + (isParity ? 'parity-question' : 'data') + ' flow-in';
+                box.style.animationDelay = (i * .04) + 's';
+                box.textContent = isParity ? 'P' : bits[i];
+                const lbl = document.createElement('div'); lbl.className = 'pos-label'; lbl.textContent = `Pos${idx}`;
+                col.appendChild(box); col.appendChild(lbl);
+                row2.appendChild(col);
+            });
+            s2.appendChild(row2);
+
+            // Stage 3: animate parity resolution
+            document.getElementById('stage3-title').textContent = '③ Calculate & Fill Parity Bits';
+
+            animateParityCalcs(parityCalcs, positions, bits, data.length + r, log, () => {
+                // Stage 4: final codeword
+                const cwEl = document.getElementById('viz-codeword'); cwEl.innerHTML = '';
+                const clsMap = {}, lblMap = {};
+                const n = data.length + r;
+                codeword.split('').forEach((_, i) => {
+                    const pos = n - i;
+                    clsMap[i] = (pos & (pos - 1)) === 0 ? 'parity' : 'data';
+                    lblMap[i] = (pos & (pos - 1)) === 0 ? `P${pos}` : `D`;
+                });
+                renderBitRow(cwEl, codeword, clsMap, lblMap);
+                State.codeword = codeword;
+                addLog(log, `✅ Codeword = ${codeword}`, 'done');
+                document.getElementById('btn-send').style.display = 'block';
+            });
+        }
+    </script>
+</body>
+
+</html>
